@@ -11,8 +11,8 @@ from timm.data import rand_augment_transform, Mixup
 from timm.loss import SoftTargetCrossEntropy
 from timm.scheduler import CosineLRScheduler
 
-sys.path.insert(0, '../')
-from processing.loaders import AmsterdamDataset
+# sys.path.insert(0, '../')
+# from processing.loaders import AmsterdamDataset
 
 # Manage command line arguments
 parser = ArgumentParser()
@@ -29,7 +29,7 @@ parser.add_argument("--lr", default=1e-03, type=float,
                     help="Learning rate to be employed.")
 parser.add_argument("--weight_decay", default=5e-02, type=float,
                     help="Weight decay to be employed.")
-parser.add_argument("--batch_size", default=64, type=int,
+parser.add_argument("--batch_size", default=1028, type=int,
                     help="Number of epochs to perform while training.")
 parser.add_argument("--load_network", default=None, type=str,
                     help="If set given network (state dict) is loaded.")
@@ -48,6 +48,9 @@ args = parser.parse_args()
 
 # Set cuda visible devices
 os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_devices
+
+# Set data root
+root = os.path.join('..', '..', '..', 'data')
 
 from swin_transformer_v2 import *
 from metrics import Accuracy
@@ -70,11 +73,11 @@ def main(args) -> None:
             transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
         ])
         # Init datasets
-        training_dataset = torchvision.datasets.CIFAR10(root="./CIFAR10", train=True, download=False,
+        training_dataset = torchvision.datasets.CIFAR10(root=os.path.join(root, 'CIFAR10'), train=True, download=False,
                                                         transform=transform_train)
         training_dataset = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True,
                                       num_workers=4, pin_memory=True, prefetch_factor=10)
-        test_dataset = torchvision.datasets.CIFAR10(root="./CIFAR10", train=False, download=False,
+        test_dataset = torchvision.datasets.CIFAR10(root=os.path.join(root, 'CIFAR10'), train=False, download=False,
                                                     transform=transform_test)
         test_dataset = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
                                   num_workers=4, pin_memory=True, prefetch_factor=10)

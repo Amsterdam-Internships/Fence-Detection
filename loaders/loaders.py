@@ -2,6 +2,7 @@ import os
 import io
 import cv2
 import yaml
+import json
 import torch
 import types
 import inspect
@@ -10,11 +11,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from PIL import Image
 from pprint import pprint
 from .geometry import viewpoint_to_pixels, reindex
 
 from skimage import io, transform
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 
 class PanoramaImage(object):

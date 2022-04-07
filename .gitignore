@@ -16,7 +16,10 @@ __pycache__/
 # exclude actual data
 data/*
 models/weights/*
+models/transformers/swin/experiments/*
+experiments/*
 
 # preserve file so that empty dir shows
 !data/.gitkeep
+!experiments/.gitkeep
 !models/weights/.gitkeep
