@@ -81,33 +81,38 @@ class ADE20KDataset(Dataset):
 class AmsterdamDataset(Dataset):
     """
     """
-    def __init__(self, csv_file, root_dir, transform=None):
+    def __init__(self, images, annotations, transform=None):
         """
         """
-        self.metadata = pd.read_csv(csv_file, sep=', ', engine='python')
-        self.root_dir = root_dir
         self.transform = transform
+        self.filelist = os.listdir(images)
+        
+        self.coco = COCO(os.path.join(annotations, 'annotations-coco.json'))
+
+        # get annotations using COCO API
+        category_ids = self.coco.getCatIds()
+        annotation_ids = self.coco.getAnnIds(catIds=category_ids)
+
+        self.images = images
+        self.annotations = self.coco.loadAnns(annotation_ids)
+
 
     def __len__(self):
-        return len(self.metadata)
+        return len(self.annotations)
+
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+        """
+        """
+        annotation = self.annotations[idx]
 
-        fname = os.path.join(self.root_dir, 
-                             self.metadata.filename.iloc[idx])
+        fname = os.path.join(self.images, self.filelist[annotation['image_id'] - 1])
         
-        img = io.imread(fname)
-
-        # TODO
-        ann = None
-        lab = np.zeros(3)
-        lab[self.metadata.quay.iloc[idx]] = 1
-        
-        sample = [img, lab]
+        image = io.imread(fname)
+        label = self.coco.annToMask(annotation)
 
         if self.transform:
-            sample[0] = self.transform(sample[0])
-
-        return sample
+            image = self.transform(image)
+            label = torch.as_tensor(label)
+            
+        return image, label
