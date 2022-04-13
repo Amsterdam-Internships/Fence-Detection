@@ -87,9 +87,9 @@ class AmsterdamDataset(Dataset):
         self.transform = transform
         self.filelist = os.listdir(images)
         
-        self.coco = COCO(os.path.join(annotations, 'annotations-coco.json'))
-
         # get annotations using COCO API
+        self.coco = COCO(annotations)
+
         category_ids = self.coco.getCatIds()
         annotation_ids = self.coco.getAnnIds(catIds=category_ids)
 
@@ -106,7 +106,7 @@ class AmsterdamDataset(Dataset):
         """
         annotation = self.annotations[idx]
 
-        fname = os.path.join(self.images, self.filelist[annotation['image_id'] - 1])
+        fname = os.path.join(self.images, self.filelist[annotation['image_id']])
         
         image = io.imread(fname)
         label = self.coco.annToMask(annotation)
