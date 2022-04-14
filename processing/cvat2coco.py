@@ -6,7 +6,27 @@ import argparse
 import numpy as np
 
 from lxml import etree
+from skimage import measure
 from pycocotools import mask
+
+
+def polyline_to_polygon(points, width, height, pixels=3):
+    """"""
+    points = points.astype(int)
+    polygon = []
+
+    # create ndarray binary mask
+    background = np.zeros((height, width)).astype(int)
+    binary_mask = cv2.polylines(background, [points], False, 1, pixels, lineType=cv2.LINE_AA)
+
+    # use skimage to conver to polygon points
+    # contours = measure.find_contours(binary_mask, .5)
+    
+    # for contour in contours:
+    #     contour = np.flip(contour, axis=1)
+    #     polygon.append(contour.ravel().tolist())
+
+    return binary_mask.tolist()
 
 
 def parse_polygon(index, image, polygon):
@@ -58,22 +78,21 @@ def parse_polyline(index, image, polyline):
     # convert multiline points to ndarray
     points = polyline.attrib.get('points').split(';')
     points = [point.split(',') for point in points]
-    points = np.array([np.array(points, dtype=float).flatten()])
+    points = np.array(points, dtype=float)
 
     # convert ndarray to polygon points
-    thickness = 1
-    offset = thickness / 2
+    points = polyline_to_polygon(points, width, height)
+    
+    # json_object['segmentation'] = points
+    json_object['mask'] = points
 
-    points = np.hstack((points - offset, points + offset))
-
-    json_object['segmentation'] = points.tolist()
     
     # encode
-    rles = mask.frPyObjects(points, height, width)
-    rle = mask.merge(rles)
+    # rles = mask.frPyObjects(points, height, width)
+    # rle = mask.merge(rles)
 
-    json_object['area'] = mask.area(rle).astype(float)
-    json_object['bbox'] = mask.toBbox(rle).tolist()
+    # json_object['area'] = mask.area(rle).astype(float)
+    # json_object['bbox'] = mask.toBbox(rle).tolist()
 
     # additional attributes
     json_object['iscrowd'] = 0
@@ -112,6 +131,7 @@ def parse_image(index, image):
 
 
 def parse_meta(meta):
+    """"""
     # TODO: update license
     licenses = [{'name': '', 'id': 0, 'url': ''}]
 
@@ -137,6 +157,7 @@ def parse_meta(meta):
 
 
 def xml_to_json(xml):
+    """"""
     json_object = {}
 
     # meta
@@ -168,7 +189,7 @@ def xml_to_json(xml):
 
 
 if __name__ == '__main__':
-    fname = os.path.join('..', 'data', 'cvat-draft', 'annotations.xml')
+    fname = os.path.join('..', 'data', 'spectrum-batch-1', 'annotations.xml')
 
     with open(fname) as f:
         xml = f.read().encode('ascii')

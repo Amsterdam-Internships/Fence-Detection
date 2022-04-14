@@ -3,6 +3,8 @@ import io
 import json
 import torch
 
+import numpy as np
+
 from PIL import Image
 
 from skimage import io, transform
@@ -81,38 +83,50 @@ class ADE20KDataset(Dataset):
 class AmsterdamDataset(Dataset):
     """
     """
-    def __init__(self, images, annotations, transform=None):
+    def __init__(self, imagedir, annotations, transform=None):
         """
         """
         self.transform = transform
-        self.filelist = os.listdir(images)
+        self.imagedir = imagedir
         
         # get annotations using COCO API
         self.coco = COCO(annotations)
 
-        category_ids = self.coco.getCatIds()
-        annotation_ids = self.coco.getAnnIds(catIds=category_ids)
+        self.category_ids = self.coco.getCatIds()
+        annotation_ids = self.coco.getAnnIds(catIds=self.category_ids)
+        image_ids = self.coco.getImgIds(catIds=self.category_ids)
 
-        self.images = images
+        self.images = self.coco.loadImgs(image_ids)
         self.annotations = self.coco.loadAnns(annotation_ids)
 
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.images)
 
 
     def __getitem__(self, idx):
         """
         """
-        annotation = self.annotations[idx]
-
-        fname = os.path.join(self.images, self.filelist[annotation['image_id']])
-        
+        # load image
+        obj = self.images[idx]
+        fname = os.path.join(self.imagedir, obj['file_name'])
         image = io.imread(fname)
-        label = self.coco.annToMask(annotation)
+        
+        # get all annotations corresponding to image
+        annotation_ids = self.coco.getAnnIds(imgIds=obj['id'], catIds=self.category_ids, iscrowd=None)
+        annotations = self.coco.loadAnns(annotation_ids)
+
+        # generate mask
+        mask = np.zeros((obj['height'], obj['width']))
+
+        for annotation in annotations:
+            if annotation.get('mask'):
+                mask = np.maximum(mask, np.array(annotation.get('mask')) * annotation['category_id'])
+            else:
+                mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
 
         if self.transform:
             image = self.transform(image)
-            label = torch.as_tensor(label)
+            mask = torch.as_tensor(mask)
             
-        return image, label
+        return image, mask
