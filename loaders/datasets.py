@@ -10,6 +10,7 @@ from PIL import Image
 from skimage import io, transform
 from torch.utils.data import Dataset
 from torchvision import transforms
+from pycocotools import mask as cmask
 from pycocotools.coco import COCO
 
 
@@ -120,8 +121,11 @@ class AmsterdamDataset(Dataset):
         mask = np.zeros((obj['height'], obj['width']))
 
         for annotation in annotations:
-            if annotation.get('mask'):
-                mask = np.maximum(mask, np.array(annotation.get('mask')) * annotation['category_id'])
+            if annotation.get('counts'):
+                # decode uncompressed RLE
+                ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
+                ann = cmask.decode(ann)
+                mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
             else:
                 mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
 

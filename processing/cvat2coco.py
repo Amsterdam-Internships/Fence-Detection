@@ -8,6 +8,18 @@ import numpy as np
 from lxml import etree
 from skimage import measure
 from pycocotools import mask
+from itertools import groupby
+
+
+def binary_mask_to_rle(binary_mask):
+    """"""
+    rle = {'counts': [], 'size': list(binary_mask.shape)}
+    counts = rle.get('counts')
+    for i, (value, elements) in enumerate(groupby(binary_mask.ravel(order='F'))):
+        if i == 0 and value == 1:
+            counts.append(0)
+        counts.append(len(list(elements)))
+    return rle
 
 
 def polyline_to_polygon(points, width, height, pixels=3):
@@ -19,14 +31,14 @@ def polyline_to_polygon(points, width, height, pixels=3):
     background = np.zeros((height, width)).astype(int)
     binary_mask = cv2.polylines(background, [points], False, 1, pixels, lineType=cv2.LINE_AA)
 
-    # use skimage to conver to polygon points
-    # contours = measure.find_contours(binary_mask, .5)
-    
-    # for contour in contours:
-    #     contour = np.flip(contour, axis=1)
-    #     polygon.append(contour.ravel().tolist())
+    # RLE encode
+    arr = np.asfortranarray(binary_mask, dtype=np.uint8)
+    counts = binary_mask_to_rle(arr)
 
-    return binary_mask.tolist()
+    # compress
+    rle = mask.frPyObjects(counts, height, width)
+
+    return counts, rle
 
 
 def parse_polygon(index, image, polygon):
@@ -80,19 +92,18 @@ def parse_polyline(index, image, polyline):
     points = [point.split(',') for point in points]
     points = np.array(points, dtype=float)
 
-    # convert ndarray to polygon points
-    points = polyline_to_polygon(points, width, height)
+    # convert ndarray to polygon RLE
+    counts, rle = polyline_to_polygon(points, width, height)
     
     # json_object['segmentation'] = points
-    json_object['mask'] = points
+    json_object['counts'] = counts
 
-    
     # encode
     # rles = mask.frPyObjects(points, height, width)
     # rle = mask.merge(rles)
 
-    # json_object['area'] = mask.area(rle).astype(float)
-    # json_object['bbox'] = mask.toBbox(rle).tolist()
+    json_object['area'] = mask.area(rle).astype(float)
+    json_object['bbox'] = mask.toBbox(rle).tolist()
 
     # additional attributes
     json_object['iscrowd'] = 0
