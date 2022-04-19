@@ -125,12 +125,16 @@ class AmsterdamDataset(Dataset):
                 # decode uncompressed RLE
                 ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
                 ann = cmask.decode(ann)
-                mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
-            else:
-                mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
+                # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
+                mask = np.maximum(mask, np.array(ann) * 1)
+            # else:
+            #     mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
+
+        # convert from float to integer
+        mask = mask.astype(np.uint8)
 
         if self.transform:
             image = self.transform(image)
-            mask = torch.as_tensor(mask)
+            mask = self.transform(mask)
             
         return image, mask
