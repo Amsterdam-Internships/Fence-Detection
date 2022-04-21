@@ -2,21 +2,79 @@ import os
 import sys
 import time
 import torch
+
+import torch.nn as nn
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import BCEWithLogitsLoss, BCELoss
 from torch.optim import Adam
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from torchvision import transforms
 from imutils import paths
 from tqdm import tqdm
 
+
 import config
 from model import UNet
 
 sys.path.insert(0, os.path.join('..', '..', '..'))
 from loaders.datasets import AmsterdamDataset
+
+
+class IoULoss(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(IoULoss, self).__init__()
+
+    def forward(self, inputs, targets, smooth=1):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        # inputs = torch.sigmoid(inputs)       
+        
+        #flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+
+        # print(inputs)
+        # print(targets)
+        # assert False
+        # inputs = inputs > 0.5
+        
+        #intersection is equivalent to True Positive count
+        #union is the mutually inclusive area of all labels & predictions 
+        intersection = (inputs * targets).sum()
+        total = (inputs + targets).sum()
+        union = total - intersection 
+        
+        IoU = (intersection + smooth)/(union + smooth)
+                
+        return 1 - IoU
+
+
+ALPHA = 0.8
+GAMMA = 2
+
+class FocalLoss(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(FocalLoss, self).__init__()
+
+    def forward(self, inputs, targets, alpha=ALPHA, gamma=GAMMA, smooth=1):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        inputs = F.sigmoid(inputs)       
+        
+        #flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+        
+        #first compute binary cross-entropy 
+        BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
+        BCE_EXP = torch.exp(-BCE)
+        focal_loss = alpha * (1-BCE_EXP)**gamma * BCE
+                       
+        return focal_loss
 
 
 if __name__ == '__main__':
@@ -46,7 +104,9 @@ if __name__ == '__main__':
     unet = UNet().to(config.DEVICE)
 
     # initialize loss function and optimizer
-    lossFunc = BCEWithLogitsLoss()
+    # lossFunc = BCEWithLogitsLoss(pos_weight=torch.as_tensor([1000]).to(config.DEVICE))
+    # lossFunc = BCELoss().to(config.DEVICE)
+    lossFunc = IoULoss().to(config.DEVICE)
     opt = Adam(unet.parameters(), lr=config.INIT_LR)
 
     # calculate steps per epoch for training and test set
@@ -58,6 +118,7 @@ if __name__ == '__main__':
 
     print("[INFO] training the network...")
     startTime = time.time()
+
     for e in tqdm(range(config.NUM_EPOCHS)):
         # set the model in training mode
         unet.train()

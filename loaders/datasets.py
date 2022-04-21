@@ -122,13 +122,16 @@ class AmsterdamDataset(Dataset):
 
         for annotation in annotations:
             if annotation.get('counts'):
+                # pass
                 # decode uncompressed RLE
                 ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
                 ann = cmask.decode(ann)
                 # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
                 mask = np.maximum(mask, np.array(ann) * 1)
-            # else:
-            #     mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
+            else:
+                pass
+                # mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
+                # mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
 
         # convert from float to integer
         mask = mask.astype(np.uint8)
