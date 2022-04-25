@@ -22,13 +22,13 @@ PIN_MEMORY = True if DEVICE == "cuda" else False
 # and number of levels in the U-Net model
 NUM_CHANNELS = 1
 NUM_CLASSES = 2
-NUM_LEVELS = 3
+NUM_LEVELS = 2
 
 # initialize learning rate, number of epochs to train for, and the
 # batch size
-INIT_LR = 5e-3
+INIT_LR = 5e-4
 NUM_EPOCHS = 40
-BATCH_SIZE = 2
+BATCH_SIZE = 16
 
 # define the input image dimensions
 INPUT_IMAGE_WIDTH = 1024

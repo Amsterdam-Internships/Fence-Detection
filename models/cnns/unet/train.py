@@ -31,7 +31,7 @@ class IoULoss(nn.Module):
     def forward(self, inputs, targets, smooth=1):
         
         #comment out if your model contains a sigmoid or equivalent activation layer
-        # inputs = torch.sigmoid(inputs)       
+        inputs = torch.sigmoid(inputs)       
         
         #flatten label and prediction tensors
         inputs = inputs.view(-1)
@@ -79,14 +79,22 @@ class FocalLoss(nn.Module):
 
 if __name__ == '__main__':
     # define transformations
-    transform = transforms.Compose([transforms.ToPILImage(),
-    transforms.Resize((config.INPUT_IMAGE_HEIGHT,
-        config.INPUT_IMAGE_WIDTH)),
+    train_transform = transforms.Compose([transforms.ToPILImage(),
+    # transforms.Resize((config.INPUT_IMAGE_HEIGHT,
+    #     config.INPUT_IMAGE_WIDTH)),
+    transforms.RandomHorizontalFlip(p=.5),
+    transforms.RandomRotation(degrees=(-25, 25)),
+    # transforms.AutoAugment(transforms.AutoAugmentPolicy.CIFAR10),
+    transforms.ToTensor()])
+
+    test_transform = transforms.Compose([transforms.ToPILImage(),
+    # transforms.Resize((config.INPUT_IMAGE_HEIGHT,
+    #     config.INPUT_IMAGE_WIDTH)),
     transforms.ToTensor()])
 
     # create the train and test datasets
-    train = AmsterdamDataset(config.TRAIN_IMAGE_PATH, config.TRAIN_ANNOTATIONS_PATH, transform=transform)
-    test = AmsterdamDataset(config.TEST_IMAGE_PATH, config.TEST_ANNOTATIONS_PATH, transform=transform)
+    train = AmsterdamDataset(config.TRAIN_IMAGE_PATH, config.TRAIN_ANNOTATIONS_PATH, transform=train_transform)
+    test = AmsterdamDataset(config.TEST_IMAGE_PATH, config.TEST_ANNOTATIONS_PATH, transform=test_transform, train=False)
 
     print(f"[INFO] found {len(train)} examples in the training set...")
     print(f"[INFO] found {len(test)} examples in the test set...")
@@ -104,9 +112,9 @@ if __name__ == '__main__':
     unet = UNet().to(config.DEVICE)
 
     # initialize loss function and optimizer
-    # lossFunc = BCEWithLogitsLoss(pos_weight=torch.as_tensor([1000]).to(config.DEVICE))
-    # lossFunc = BCELoss().to(config.DEVICE)
-    lossFunc = IoULoss().to(config.DEVICE)
+    lossFunc = BCEWithLogitsLoss(pos_weight=torch.as_tensor([5]).to(config.DEVICE))
+    # # lossFunc = BCELoss().to(config.DEVICE)
+    # lossFunc = IoULoss().to(config.DEVICE)
     opt = Adam(unet.parameters(), lr=config.INIT_LR)
 
     # calculate steps per epoch for training and test set

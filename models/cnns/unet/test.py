@@ -41,12 +41,20 @@ if __name__ == '__main__':
     for x, y in test_loader:
         x, y = x.to(config.DEVICE), y.to(config.DEVICE).int()
         pred = model(x)
+        pred = torch.sigmoid(pred)
+
+        # print(pred > .5)
+        print(torch.min(pred))
+        print(torch.max(pred))
+        print(torch.count_nonzero((pred > .5).to(torch.int32)))
         
+        print(pred.shape)
+        print(y.shape)
         print(iou(pred, y))
 
-    # report IoU on train set
-    for x, y in train_loader:
-        x, y = x.to(config.DEVICE), y.to(config.DEVICE).int()
-        pred = model(x)
-        
-        print(iou(pred, y))
+    # # report IoU on train set
+    # for x, y in train_loader:
+    #     x, y = x.to(config.DEVICE), y.to(config.DEVICE).int()
+    #     pred = model(x)
+    #     pred = torch.sigmoid(pred)
+    #     print(iou(pred, y))

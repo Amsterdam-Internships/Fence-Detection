@@ -84,7 +84,7 @@ class ADE20KDataset(Dataset):
 class AmsterdamDataset(Dataset):
     """
     """
-    def __init__(self, imagedir, annotations, transform=None):
+    def __init__(self, imagedir, annotations, transform=None, train=True):
         """
         """
         self.transform = transform
@@ -99,6 +99,22 @@ class AmsterdamDataset(Dataset):
 
         self.images = self.coco.loadImgs(image_ids)
         self.annotations = self.coco.loadAnns(annotation_ids)
+
+        self.fnames = [image['file_name'] for image in self.images]
+
+        # filter only on fence annotations
+        if train:
+            tmp = []
+            for image in self.images:
+                ann_ids = self.coco.getAnnIds(imgIds=image['id'], catIds=self.category_ids, iscrowd=None)
+                anns = self.coco.loadAnns(ann_ids)
+                # check if image annotations contain fence(s)
+                for ann in anns:
+                    if ann.get('attributes').get('Class') == 'Quay':
+                        tmp.append(image)
+                        break
+
+            self.images = tmp
 
 
     def __len__(self):
@@ -122,16 +138,16 @@ class AmsterdamDataset(Dataset):
 
         for annotation in annotations:
             if annotation.get('counts'):
-                # pass
-                # decode uncompressed RLE
-                ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
-                ann = cmask.decode(ann)
-                # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
-                mask = np.maximum(mask, np.array(ann) * 1)
-            else:
                 pass
+                # # decode uncompressed RLE
+                # ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
+                # ann = cmask.decode(ann)
+                # # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
+                # mask = np.maximum(mask, np.array(ann) * 1)
+            else:
+                # pass
                 # mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
-                # mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
+                mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
 
         # convert from float to integer
         mask = mask.astype(np.uint8)
