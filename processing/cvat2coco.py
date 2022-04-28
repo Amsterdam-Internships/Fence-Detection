@@ -200,7 +200,8 @@ def xml_to_json(xml):
 
 
 if __name__ == '__main__':
-    fname = os.path.join('..', 'data', 'spectrum-batch-1', 'annotations.xml')
+    dirname = os.path.join('..', 'data', 'spectrum-batch-1')
+    fname = os.path.join(dirname, 'annotations.xml')
 
     with open(fname) as f:
         xml = f.read().encode('ascii')
@@ -209,6 +210,6 @@ if __name__ == '__main__':
     json_object = xml_to_json(xml)
 
     # dump
-    f = open('annotations.json', 'w')
+    f = open(os.path.join(dirname, 'annotations.json'), 'w')
     json.dump(json_object, f)
     f.close()

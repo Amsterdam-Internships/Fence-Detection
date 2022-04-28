@@ -84,10 +84,11 @@ class ADE20KDataset(Dataset):
 class AmsterdamDataset(Dataset):
     """
     """
-    def __init__(self, imagedir, annotations, transform=None, train=True):
+    def __init__(self, imagedir, annotations, transform=None, preprocessing=None, train=True):
         """
         """
         self.transform = transform
+        self.preprocessing = preprocessing
         self.imagedir = imagedir
         
         # get annotations using COCO API
@@ -110,7 +111,8 @@ class AmsterdamDataset(Dataset):
                 anns = self.coco.loadAnns(ann_ids)
                 # check if image annotations contain fence(s)
                 for ann in anns:
-                    if ann.get('attributes').get('Class') == 'Quay':
+                    # if ann.get('attributes').get('Class') == 'Quay':
+                    if ann.get('counts'):
                         tmp.append(image)
                         break
 
@@ -138,22 +140,26 @@ class AmsterdamDataset(Dataset):
 
         for annotation in annotations:
             if annotation.get('counts'):
-                pass
-                # # decode uncompressed RLE
-                # ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
-                # ann = cmask.decode(ann)
-                # # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
-                # mask = np.maximum(mask, np.array(ann) * 1)
-            else:
                 # pass
+                # decode uncompressed RLE
+                ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
+                ann = cmask.decode(ann)
+                # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
+                mask = np.maximum(mask, np.array(ann) * 1)
+            else:
+                pass
                 # mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
-                mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
+                # mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
 
         # convert from float to integer
-        mask = mask.astype(np.uint8)
+        mask = np.expand_dims(mask.astype(np.uint8), axis=-1)
 
         if self.transform:
             image = self.transform(image)
             mask = self.transform(mask)
+
+        if self.preprocessing:
+            sample = self.preprocessing(image=image, mask=mask)
+            image, mask = sample['image'], sample['mask']
             
         return image, mask

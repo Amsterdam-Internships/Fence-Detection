@@ -1,46 +1,57 @@
 import os
 import sys
-import time
 import torch
+import config
+
+from model import UNet
+from torchvision import transforms
+from torchmetrics import JaccardIndex
+from torch.utils.data import DataLoader
 
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-
-from torch.nn import BCEWithLogitsLoss, BCELoss
-from torch.optim import Adam
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
-from torchvision import transforms
-from imutils import paths
-from tqdm import tqdm
-
-
-import config
-from model import UNet
+import albumentations as album
+import segmentation_models_pytorch as smp
 
 sys.path.insert(0, os.path.join('..', '..', '..'))
 from loaders.datasets import AmsterdamDataset
 
 
+def to_tensor(x, **kwargs):
+    # print(x.shape)
+    return x.transpose(2, 0, 1).astype('float32')
+
+
+def get_preprocessing(preprocessing_fn=None):
+    """Construct preprocessing transform  W  
+    Args:
+        preprocessing_fn (callable): data normalization function 
+            (can be specific for each pretrained neural network)
+    Return:
+        transform: albumentations.Compose
+    """   
+    _transform = []
+    if preprocessing_fn:
+        _transform.append(album.Lambda(image=preprocessing_fn))
+    _transform.append(album.Lambda(image=to_tensor, mask=to_tensor))
+        
+    return album.Compose(_transform)
+
+
 class IoULoss(nn.Module):
+    __name__ = 'iou_loss'
+
     def __init__(self, weight=None, size_average=True):
         super(IoULoss, self).__init__()
 
     def forward(self, inputs, targets, smooth=1):
         
         #comment out if your model contains a sigmoid or equivalent activation layer
-        inputs = torch.sigmoid(inputs)       
+        # inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
-
-        # print(inputs)
-        # print(targets)
-        # assert False
-        # inputs = inputs > 0.5
         
         #intersection is equivalent to True Positive count
         #union is the mutually inclusive area of all labels & predictions 
@@ -52,18 +63,29 @@ class IoULoss(nn.Module):
                 
         return 1 - IoU
 
+class BCEWithLogitsLoss(nn.Module):
+    __name__ = 'bce_with_logits_loss'
+
+    def __init__(self, weight=None, size_average=True):
+        super(BCEWithLogitsLoss, self).__init__()
+
+    def forward(self, inputs, targets):
+        loss = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([50]).cuda())
+        return loss(inputs, targets)
 
 ALPHA = 0.8
 GAMMA = 2
 
 class FocalLoss(nn.Module):
+    __name__ = 'focal_loss'
+
     def __init__(self, weight=None, size_average=True):
         super(FocalLoss, self).__init__()
 
     def forward(self, inputs, targets, alpha=ALPHA, gamma=GAMMA, smooth=1):
         
         #comment out if your model contains a sigmoid or equivalent activation layer
-        inputs = F.sigmoid(inputs)       
+        # inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
         inputs = inputs.view(-1)
@@ -77,122 +99,117 @@ class FocalLoss(nn.Module):
         return focal_loss
 
 
+class PositiveIoUScore(nn.Module):
+    __name__ = 'iou_score'
+
+    def __init__(self):
+        super(PositiveIoUScore, self).__init__()
+
+    def forward(self, inputs, targets):
+        ious = JaccardIndex(num_classes=2, reduction='none')(inputs.cpu(), targets.int().cpu())
+        return ious[1]
+
+class NegativeIoUScore(nn.Module):
+    __name__ = 'bg_iou'
+
+    def __init__(self):
+        super(NegativeIoUScore, self).__init__()
+
+    def forward(self, inputs, targets):
+        ious = JaccardIndex(num_classes=2, reduction='none')(inputs.cpu(), targets.int().cpu())
+        return ious[0]
+
+
+
 if __name__ == '__main__':
-    # define transformations
+    model = UNet
+    preprocessing_fn = smp.encoders.get_preprocessing_fn(config.ENCODER, config.ENCODER_WEIGHTS)
+
     train_transform = transforms.Compose([transforms.ToPILImage(),
     # transforms.Resize((config.INPUT_IMAGE_HEIGHT,
     #     config.INPUT_IMAGE_WIDTH)),
-    transforms.RandomHorizontalFlip(p=.5),
-    transforms.RandomRotation(degrees=(-25, 25)),
+    # transforms.RandomHorizontalFlip(p=.5),
+    # transforms.RandomRotation(degrees=(-25, 25)),
     # transforms.AutoAugment(transforms.AutoAugmentPolicy.CIFAR10),
     transforms.ToTensor()])
 
-    test_transform = transforms.Compose([transforms.ToPILImage(),
+    valid_transform = transforms.Compose([transforms.ToPILImage(),
     # transforms.Resize((config.INPUT_IMAGE_HEIGHT,
     #     config.INPUT_IMAGE_WIDTH)),
     transforms.ToTensor()])
 
-    # create the train and test datasets
-    train = AmsterdamDataset(config.TRAIN_IMAGE_PATH, config.TRAIN_ANNOTATIONS_PATH, transform=train_transform)
-    test = AmsterdamDataset(config.TEST_IMAGE_PATH, config.TEST_ANNOTATIONS_PATH, transform=test_transform, train=False)
+    train_dataset = AmsterdamDataset(config.TRAIN_IMAGE_PATH, config.TRAIN_ANNOTATIONS_PATH,
+                                    # transform=train_transform,
+                                    preprocessing=get_preprocessing(preprocessing_fn))
+    valid_dataset = AmsterdamDataset(config.TEST_IMAGE_PATH, config.TEST_ANNOTATIONS_PATH, 
+                                    # transform=valid_transform,
+                                    preprocessing=get_preprocessing(preprocessing_fn))
 
-    print(f"[INFO] found {len(train)} examples in the training set...")
-    print(f"[INFO] found {len(test)} examples in the test set...")
+    # Get train and val data loaders
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=3)
+    valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False, num_workers=3)
 
-    # create the training and test data loaders
-    train_loader = DataLoader(train, shuffle=True,
-    batch_size=config.BATCH_SIZE, pin_memory=config.PIN_MEMORY,
-    num_workers=3)
+    # Set flag to train the model or not. If set to 'False', only prediction is performed (using an older model checkpoint)
+    TRAINING = True
 
-    test_loader = DataLoader(test, shuffle=False,
-    batch_size=config.BATCH_SIZE, pin_memory=config.PIN_MEMORY,
-    num_workers=3)
+    # Set num of epochs
+    EPOCHS = 10
 
-    # initialize our UNet model
-    unet = UNet().to(config.DEVICE)
+    # Set device: `cuda` or `cpu`
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # initialize loss function and optimizer
-    lossFunc = BCEWithLogitsLoss(pos_weight=torch.as_tensor([5]).to(config.DEVICE))
-    # # lossFunc = BCELoss().to(config.DEVICE)
-    # lossFunc = IoULoss().to(config.DEVICE)
-    opt = Adam(unet.parameters(), lr=config.INIT_LR)
+    # define loss function
+    # loss = smp.utils.losses.BCEDiceLoss()
+    loss = BCEWithLogitsLoss()
 
-    # calculate steps per epoch for training and test set
-    trainSteps = len(train) // config.BATCH_SIZE
-    testSteps = len(test) // config.BATCH_SIZE
+    # define metrics
+    metrics = [
+        PositiveIoUScore(),
+        NegativeIoUScore(),
+    ]
 
-    # initialize a dictionary to store training history
-    H = {"train_loss": [], "test_loss": []}
+    # define optimizer
+    optimizer = torch.optim.Adam([ 
+        dict(params=model.parameters(), lr=0.00008),
+    ])
 
-    print("[INFO] training the network...")
-    startTime = time.time()
+    # load best saved model checkpoint from previous commit (if present)
+    if os.path.exists('../input/unet-resnet50-frontend-road-segmentation-pytorch/best_model.pth'):
+        model = torch.load('../input/unet-resnet50-frontend-road-segmentation-pytorch/best_model.pth', map_location=DEVICE)
 
-    for e in tqdm(range(config.NUM_EPOCHS)):
-        # set the model in training mode
-        unet.train()
+    train_epoch = smp.utils.train.TrainEpoch(
+        model, 
+        loss=loss, 
+        metrics=metrics, 
+        optimizer=optimizer,
+        device=DEVICE,
+        verbose=True,
+    )
 
-        # initialize the total training and validation loss
-        totalTrainLoss = 0
-        totalTestLoss = 0
-        # loop over the training set
+    valid_epoch = smp.utils.train.ValidEpoch(
+        model, 
+        loss=loss, 
+        metrics=metrics, 
+        device=DEVICE,
+        verbose=True,
+    )
 
-        for (i, (x, y)) in enumerate(train_loader):
-            # send the input to the device
-            (x, y) = (x.to(config.DEVICE), y.to(config.DEVICE))
+    if TRAINING:
 
-            # perform a forward pass and calculate the training loss
-            pred = unet(x)
-            loss = lossFunc(pred, y)
+        best_iou_score = 0.0
+        train_logs_list, valid_logs_list = [], []
 
-            # first, zero out any previously accumulated gradients, then
-            # perform backpropagation, and then update model parameters
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
+        for i in range(0, EPOCHS):
 
-            # add the loss to the total training loss so far
-            totalTrainLoss += loss
+            # Perform training & validation
+            print('\nEpoch: {}'.format(i))
+            train_logs = train_epoch.run(train_loader)
+            valid_logs = valid_epoch.run(valid_loader)
+            train_logs_list.append(train_logs)
+            valid_logs_list.append(valid_logs)
 
-        # switch off autograd
-        with torch.no_grad():
-            # set the model in evaluation mode
-            unet.eval()
-            # loop over the validation set
-            for (x, y) in test_loader:
-                # send the input to the device
-                (x, y) = (x.to(config.DEVICE), y.to(config.DEVICE))
-                # make the predictions and calculate the validation loss
-                pred = unet(x)
-                totalTestLoss += lossFunc(pred, y)
-
-        # calculate the average training and validation loss
-        avgTrainLoss = totalTrainLoss / trainSteps
-        avgTestLoss = totalTestLoss / testSteps
-
-        # update our training history
-        H["train_loss"].append(avgTrainLoss.cpu().detach().numpy())
-        H["test_loss"].append(avgTestLoss.cpu().detach().numpy())
-
-        # print the model training and validation information
-        print("[INFO] EPOCH: {}/{}".format(e + 1, config.NUM_EPOCHS))
-        print("Train loss: {:.6f}, Test loss: {:.4f}".format(
-            avgTrainLoss, avgTestLoss))
-
-    # display the total time needed to perform the training
-    endTime = time.time()
-    print("[INFO] total time taken to train the model: {:.2f}s".format(
-        endTime - startTime))
-
-    # plot the training loss
-    plt.style.use("ggplot")
-    plt.figure()
-    plt.plot(H["train_loss"], label="train_loss")
-    plt.plot(H["test_loss"], label="test_loss")
-    plt.title("Training Loss on Dataset")
-    plt.xlabel("Epoch #")
-    plt.ylabel("Loss")
-    plt.legend(loc="lower left")
-    plt.savefig(config.PLOT_PATH)
-
-    # serialize the model to disk
-    torch.save(unet, config.MODEL_PATH)
+            # Save model if a better val IoU score is obtained
+            if best_iou_score < valid_logs['iou_score']:
+                best_iou_score = valid_logs['iou_score']
+                torch.save(model, './best_model.pth')
+                print('Model saved!')
