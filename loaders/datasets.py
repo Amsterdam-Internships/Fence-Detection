@@ -155,8 +155,8 @@ class AmsterdamDataset(Dataset):
         mask = np.expand_dims(mask.astype(np.uint8), axis=-1)
 
         if self.transform:
-            image = self.transform(image)
-            mask = self.transform(mask)
+            sample = self.transform(image=image, mask=mask)
+            image, mask = sample['image'], sample['mask']
 
         if self.preprocessing:
             sample = self.preprocessing(image=image, mask=mask)
