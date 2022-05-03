@@ -1,7 +1,11 @@
+import cv2
+
 import numpy as np
 import torch.nn as nn
 
+from sklearn.cluster import DBSCAN
 from torchmetrics import JaccardIndex
+from scipy.spatial import ConvexHull
 
 
 # pytorch metrics
@@ -29,24 +33,70 @@ class NegativeIoUScore(nn.Module):
         return ious[0]
 
 
-# numpy metrics
-def box_precision(mask, pred):
-    ones_xy_mask = np.flip(np.column_stack(np.where(mask > 0)), axis=1)
+# custom metrics
+def to_blobs(mask, threshold=.5, blobber=DBSCAN):
+    """"""
+    canvas = np.zeros(mask.shape)
+    contours = []
+    
+    # get all positive prediction coordinates
+    coords = np.flip(np.column_stack(np.where(mask > threshold)), axis=1)
+    
+    if len(coords) > 0:
+        # use clustering algorithm to find labels per pixel coordinate
+        clustering = blobber(eps=50, min_samples=10).fit(coords)
+        coord_labels = clustering.labels_
+        
+        # get non noisy cluster labels
+        labels = np.unique(coord_labels)
+        labels = labels[labels >= 0]
+        
+        for label in labels:
+            cluster = coords[coord_labels == label]
+            contour = cluster[ConvexHull(cluster).vertices]
+            
+            contours.append(contour)
+    
+        canvas = cv2.drawContours(canvas, contours, -1, 1, -1)
+    
+    return canvas
 
-    xmax, ymax = ones_xy_mask.max(axis=0)
-    xmin, ymin = ones_xy_mask.min(axis=0)
 
-    print(xmax, ymax)
-    print(xmin, ymin)
+# TODO: update update (haha) to accomadate batch input
+class BlobOverlap():
+    __name__ = 'blob_overlap'
 
-    ones_xy_mask = np.flip(np.column_stack(np.where(pred > 0)), axis=1)
+    def __init__(self, smoothing=.1):
+        self.score = 0
+        self.count = 0
 
-    xmax, ymax = ones_xy_mask.max(axis=0)
-    xmin, ymin = ones_xy_mask.min(axis=0)
 
-    print(xmax, ymax)
-    print(xmin, ymin)
+    def update(self, preds, target):
+        """"""
+        blobs_preds = to_blobs(preds)
+        blobs_target = to_blobs(target)
 
+        # change background value of prediction for efficient overlap computation
+        blobs_preds[blobs_preds == 0] = -1
+
+        # calculate blob overlap
+        overlap = (blobs_target - blobs_preds)
+
+        area_of_overlap = np.count_nonzero(overlap == 0)
+        area_of_union = np.count_nonzero((blobs_target + blobs_preds) > 0)
+
+        if area_of_union > 0:
+            blobs_iou = area_of_overlap / area_of_union
+        else:
+            blobs_iou = 0
+
+        self.score += blobs_iou
+        self.count += 1
+
+
+    def compute(self):
+        """"""
+        return self.score / self.count
 
 
 # everything below sourced from: segmentation-models-pytorch:
