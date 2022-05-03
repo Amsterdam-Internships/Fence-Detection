@@ -10,7 +10,7 @@ ENCODER_WEIGHTS = 'imagenet'
 ACTIVATION = 'sigmoid'
 
 # data details
-TRAIN_IMAGE_PATH = os.path.join('..', '..', 'data', 'images')
+TRAIN_IMAGE_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'images')
 VALID_IMAGE_PATH = TRAIN_IMAGE_PATH
 
 TRAIN_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annotations', 'train-annotations-6px.json')
@@ -20,7 +20,7 @@ VALID_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annot
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 PRECISION = 'mixed' # mixed or single precision floats
 
-TRAIN_BATCH_SIZE = 8
+TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 1
 
 NUM_WORKERS = 3

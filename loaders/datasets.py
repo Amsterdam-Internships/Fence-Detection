@@ -94,9 +94,8 @@ class AmsterdamDataset(Dataset):
         # get annotations using COCO API
         self.coco = COCO(annotations)
 
-        self.category_ids = self.coco.getCatIds()
-        annotation_ids = self.coco.getAnnIds(catIds=self.category_ids)
-        image_ids = self.coco.getImgIds(catIds=self.category_ids)
+        image_ids = [img['id'] for img in self.coco.dataset['images']]
+        annotation_ids = [ann['id'] for ann in self.coco.dataset['annotations']]
 
         self.images = self.coco.loadImgs(image_ids)
         self.annotations = self.coco.loadAnns(annotation_ids)
@@ -107,7 +106,7 @@ class AmsterdamDataset(Dataset):
         if train:
             tmp = []
             for image in self.images:
-                ann_ids = self.coco.getAnnIds(imgIds=image['id'], catIds=self.category_ids, iscrowd=None)
+                ann_ids = self.coco.getAnnIds(imgIds=image['id'], iscrowd=None)
                 anns = self.coco.loadAnns(ann_ids)
                 # check if image annotations contain fence(s)
                 for ann in anns:
@@ -132,7 +131,7 @@ class AmsterdamDataset(Dataset):
         image = io.imread(fname)
         
         # get all annotations corresponding to image
-        annotation_ids = self.coco.getAnnIds(imgIds=obj['id'], catIds=self.category_ids, iscrowd=None)
+        annotation_ids = self.coco.getAnnIds(imgIds=obj['id'], iscrowd=None)
         annotations = self.coco.loadAnns(annotation_ids)
 
         # generate mask

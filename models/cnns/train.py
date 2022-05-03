@@ -17,7 +17,7 @@ from utils.train import TrainEpoch, ValidEpoch
 
 if __name__ == '__main__':
     # get decoder
-    model = UNet
+    model = UNetPP
 
     # get encoding and training augmentation
     preprocessing_fn = smp.encoders.get_preprocessing_fn(config.ENCODER, config.ENCODER_WEIGHTS)

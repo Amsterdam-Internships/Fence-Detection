@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchmetrics import JaccardIndex
 
 
+# pytorch metrics
 class PositiveIoUScore(nn.Module):
     __name__ = 'iou_score'
 
@@ -26,6 +27,26 @@ class NegativeIoUScore(nn.Module):
     def forward(self, inputs, targets):
         ious = self.metric(inputs, targets.int())
         return ious[0]
+
+
+# numpy metrics
+def box_precision(mask, pred):
+    ones_xy_mask = np.flip(np.column_stack(np.where(mask > 0)), axis=1)
+
+    xmax, ymax = ones_xy_mask.max(axis=0)
+    xmin, ymin = ones_xy_mask.min(axis=0)
+
+    print(xmax, ymax)
+    print(xmin, ymin)
+
+    ones_xy_mask = np.flip(np.column_stack(np.where(pred > 0)), axis=1)
+
+    xmax, ymax = ones_xy_mask.max(axis=0)
+    xmin, ymin = ones_xy_mask.min(axis=0)
+
+    print(xmax, ymax)
+    print(xmin, ymin)
+
 
 
 # everything below sourced from: segmentation-models-pytorch:

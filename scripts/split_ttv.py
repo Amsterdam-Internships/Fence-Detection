@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 
 import numpy as np
 
@@ -35,6 +36,14 @@ def make_coco_json(coco, fpath, imgs, anns):
     with open(fpath, 'w') as f:
         json.dump(skeleton, f)
 
+    # copy images
+    for img in imgs:
+        if img['file_name'] not in os.listdir(WRITE_IMAGE_DIR):
+            source_path = os.path.join(READ_IMAGE_DIR, img['file_name'])
+            target_path = os.path.join(WRITE_IMAGE_DIR, img['file_name'])
+
+            shutil.copy(source_path, target_path)
+
     return
 
 
@@ -56,6 +65,24 @@ def get_imgs_anns(coco, idxs, imgs):
     return new_imgs, new_anns
 
 
+def get_filtered_anns(coco, filter_fn):
+    """
+    """
+    anns = []
+
+    for ann in coco.dataset['annotations']:
+        if filter_fn(ann):
+            anns.append(ann)
+
+    ann_ids = [ann['id'] for ann in anns]
+    img_ids = list(set([ann['image_id'] for ann in anns]))
+
+    anns = coco.loadAnns(ann_ids)
+    imgs = coco.loadImgs(img_ids)
+
+    return imgs, anns
+
+
 def get_coco_json_data(coco, fpath):
     """
     """
@@ -70,8 +97,17 @@ def get_coco_json_data(coco, fpath):
 
 
 if __name__ == '__main__':
+    # get coco annotations (first spectrum batch)
+    fname = 'train-annotations-1-6px.json'
+    fpath = os.path.join(READ_ANNOTATION_DIR, fname)
 
-    # get coco annotations
+    # use coco api
+    coco = COCO(fpath)
+
+    fn = lambda x: not (not x.get('counts'))
+    imgs, anns = get_filtered_anns(coco, filter_fn=fn)
+
+    # get coco annotations (second spectrum batch)
     fname = 'train-annotations-2-6px.json'
     fpath = os.path.join(READ_ANNOTATION_DIR, fname)
 
@@ -92,7 +128,16 @@ if __name__ == '__main__':
     idxs_train = idxs[200:]
 
     # create coco json for train subset
-    imgs, anns = get_imgs_anns(coco, idxs_train, all_imgs)
+    imgs_2, anns_2 = get_imgs_anns(coco, idxs_train, all_imgs)
+
+    print(len(imgs), len(anns))
+    print(len(imgs_2), len(anns_2))
+    
+    # combine first and second spectrum batch
+    imgs += imgs_2
+    anns += anns_2
+
+    print(len(imgs), len(anns))
 
     fpath = os.path.join(WRITE_ANNOTATION_DIR, 'train-annotations-6px.json')
     make_coco_json(coco, fpath, imgs, anns)
