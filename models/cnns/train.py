@@ -13,21 +13,33 @@ from loaders.datasets import AmsterdamDataset
 from utils.augmentation import *
 from utils.metrics import *
 from utils.train import TrainEpoch, ValidEpoch
+from utils.log import TrainLog
 
 
 if __name__ == '__main__':
+    # dedicated log
+    train_logs = TrainLog(config.TITLE, dirpath=config.LOGS_PATH)
+
     # get decoder
     model = UNetPP
 
+    train_logs.add_model_data(model)
+    train_logs.add_config_data(config)
+
+
     # get encoding and training augmentation
-    preprocessing_fn = smp.encoders.get_preprocessing_fn(config.ENCODER, config.ENCODER_WEIGHTS)
-    train_transform = get_amsterdam_augmentation()
+    preprocessing_fn = smp.encoders.get_preprocessing_fn(config.ENCODER, config.ENCODER_WEIGHTS) \
+                       if config.PREPROCESSING else None
+
+    train_transform = get_amsterdam_augmentation() if config.AUGMENTATION else None
 
     train_dataset = AmsterdamDataset(config.TRAIN_IMAGE_PATH, config.TRAIN_ANNOTATIONS_PATH,
                                     transform=train_transform,
-                                    preprocessing=get_preprocessing(preprocessing_fn))
+                                    preprocessing=get_preprocessing(preprocessing_fn),
+                                    train=True)
     valid_dataset = AmsterdamDataset(config.VALID_IMAGE_PATH, config.VALID_ANNOTATIONS_PATH, 
-                                    preprocessing=get_preprocessing(preprocessing_fn))
+                                    preprocessing=get_preprocessing(preprocessing_fn),
+                                    train=True)
 
     # get train and val data loaders
     train_loader = DataLoader(train_dataset, batch_size=config.TRAIN_BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
@@ -40,6 +52,10 @@ if __name__ == '__main__':
     metrics = [
         PositiveIoUScore(),
         NegativeIoUScore(),
+        TrueNegativeRate(),
+        TruePositiveRate(),
+        FalseNegativeRate(),
+        FalsePositiveRate(),
     ]
 
     # define optimizer
@@ -74,13 +90,31 @@ if __name__ == '__main__':
 
         # perform training & validation
         print('\nEpoch: {}'.format(i))
-        train_logs = train_epoch.run(train_loader)
-        valid_logs = valid_epoch.run(valid_loader)
-        train_logs_list.append(train_logs)
-        valid_logs_list.append(valid_logs)
+        train_results = train_epoch.run(train_loader)
+        valid_results = valid_epoch.run(valid_loader)
+
+        train_logs.add_metrics(name='train',
+                               epoch=i,
+                               dice_loss=train_results['dice_loss'],
+                               positive_iou=train_results['iou_score'],
+                               negative_iou=train_results['bg_iou'],
+                               true_negative_rate=train_results['tnr'],
+                               false_positive_rate=train_results['fpr'],
+                               false_negative_rate=train_results['fnr'],
+                               true_positive_rate=train_results['tpr'])
+
+        train_logs.add_metrics(name='valid',
+                               epoch=i,
+                               dice_loss=valid_results['dice_loss'],
+                               positive_iou=valid_results['iou_score'],
+                               negative_iou=valid_results['bg_iou'],
+                               true_negative_rate=valid_results['tnr'],
+                               false_positive_rate=valid_results['fpr'],
+                               false_negative_rate=valid_results['fnr'],
+                               true_positive_rate=valid_results['tpr'])
 
         # save model if a better val IoU score is obtained
-        if best_iou_score < valid_logs['iou_score']:
-            best_iou_score = valid_logs['iou_score']
-            torch.save(model, './best_model.pth')
+        if best_iou_score < valid_results['iou_score']:
+            best_iou_score = valid_results['iou_score']
+            torch.save(model, os.path.join(config.LOGS_PATH, config.TITLE, 'best_model.pth'))
             print('Model saved!')

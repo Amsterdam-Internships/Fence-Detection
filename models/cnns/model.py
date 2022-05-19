@@ -4,10 +4,10 @@ import segmentation_models_pytorch as smp
 
 def get_encoder(name):
     model = getattr(smp, name)
-    model = model(encoder_name=config.ENCODER, 
+    model = model(encoder_name=config.ENCODER_DETAILS, 
                   encoder_weights=config.ENCODER_WEIGHTS, 
                   classes=config.CLASSES, 
-                  activation=config.ACTIVATION,)
+                  activation=config.ACTIVATION)
     return model
 
 

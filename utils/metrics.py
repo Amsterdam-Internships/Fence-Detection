@@ -1,10 +1,14 @@
 import cv2
+import ray
+import time
+import torch
 
 import numpy as np
 import torch.nn as nn
 
-from sklearn.cluster import DBSCAN
-from torchmetrics import JaccardIndex
+from sklearn.cluster import DBSCAN, OPTICS
+from torchmetrics import JaccardIndex as JI
+from torchmetrics import ConfusionMatrix as CM
 from scipy.spatial import ConvexHull
 
 
@@ -14,7 +18,7 @@ class PositiveIoUScore(nn.Module):
 
     def __init__(self):
         super(PositiveIoUScore, self).__init__()
-        self.metric = JaccardIndex(num_classes=2, reduction='none').cuda()
+        self.metric = JI(num_classes=2, absent_score=1, reduction='none').cuda()
 
     def forward(self, inputs, targets):
         ious = self.metric(inputs, targets.int())
@@ -26,15 +30,64 @@ class NegativeIoUScore(nn.Module):
 
     def __init__(self):
         super(NegativeIoUScore, self).__init__()
-        self.metric = JaccardIndex(num_classes=2, reduction='none').cuda()
+        self.metric = JI(num_classes=2, reduction='none').cuda()
 
     def forward(self, inputs, targets):
         ious = self.metric(inputs, targets.int())
         return ious[0]
 
 
+class TrueNegativeRate(nn.Module):
+    __name__ = 'tnr'
+
+    def __init__(self, normalize=True):
+        super(TrueNegativeRate, self).__init__()
+        self.metric = CM(num_classes=2, normalize='true').cuda()
+    
+    def forward(self, inputs, targets):
+        cmat = self.metric(inputs, targets.int())
+        return cmat[0][0]
+
+
+class FalsePositiveRate(nn.Module):
+    __name__ = 'fpr'
+
+    def __init__(self, normalize=True):
+        super(FalsePositiveRate, self).__init__()
+        self.metric = CM(num_classes=2, normalize='true').cuda()
+    
+    def forward(self, inputs, targets):
+        cmat = self.metric(inputs, targets.int())
+        return cmat[0][1]
+
+
+class FalseNegativeRate(nn.Module):
+    __name__ = 'fnr'
+
+    def __init__(self, normalize=True):
+        super(FalseNegativeRate, self).__init__()
+        self.metric = CM(num_classes=2, normalize='true').cuda()
+    
+    def forward(self, inputs, targets):
+        cmat = self.metric(inputs, targets.int())
+        return cmat[1][0]
+
+
+class TruePositiveRate(nn.Module):
+    __name__ = 'tpr'
+
+    def __init__(self, normalize=True):
+        super(TruePositiveRate, self).__init__()
+        self.metric = CM(num_classes=2, normalize='true').cuda()
+    
+    def forward(self, inputs, targets):
+        cmat = self.metric(inputs, targets.int())
+        return cmat[1][1]
+
+
 # custom metrics
-def to_blobs(mask, threshold=.5, blobber=DBSCAN):
+@ray.remote
+def remote_to_blobs(mask, threshold=.5, blobber=DBSCAN):
     """"""
     canvas = np.zeros(mask.shape)
     contours = []
@@ -44,7 +97,7 @@ def to_blobs(mask, threshold=.5, blobber=DBSCAN):
     
     if len(coords) > 0:
         # use clustering algorithm to find labels per pixel coordinate
-        clustering = blobber(eps=50, min_samples=10).fit(coords)
+        clustering = blobber(eps=5, min_samples=10).fit(coords)
         coord_labels = clustering.labels_
         
         # get non noisy cluster labels
@@ -62,38 +115,173 @@ def to_blobs(mask, threshold=.5, blobber=DBSCAN):
     return canvas
 
 
-# TODO: update update (haha) to accomadate batch input
+@ray.remote
+def remote_calculate(preds, target, blobbing=True):
+    """"""
+    if blobbing:
+        preds = to_blobs(preds)
+        target = to_blobs(target)
+
+    union = target + preds
+
+    # change background value of prediction for efficient overlap computation
+    preds[preds == 0] = -1
+
+    # calculate blob overlap
+    overlap = target - preds
+
+    area_of_overlap = np.count_nonzero(overlap == 0)
+    area_of_union = np.count_nonzero(union > 0)
+
+    if area_of_union  > 0:
+        blobs_iou = area_of_overlap / area_of_union
+    elif area_of_overlap == 0 and area_of_union == 0:
+        blobs_iou = 1
+    else:
+        blobs_iou = 0
+
+    return blobs_iou
+
+
+def to_blobs(mask, threshold=.5, blobber=DBSCAN):
+    """"""
+    canvas = np.zeros(mask.shape)
+    contours = []
+    
+    # get all positive prediction coordinates
+    coords = np.flip(np.column_stack(np.where(mask > threshold)), axis=1)
+    
+    if len(coords) > 0:
+        # use clustering algorithm to find labels per pixel coordinate
+        clustering = blobber(eps=5, min_samples=10).fit(coords)
+        coord_labels = clustering.labels_
+        
+        # get non noisy cluster labels
+        labels = np.unique(coord_labels)
+        labels = labels[labels >= 0]
+        
+        for label in labels:
+            cluster = coords[coord_labels == label]
+            contour = cluster[ConvexHull(cluster).vertices]
+            
+            contours.append(contour)
+    
+        canvas = cv2.drawContours(canvas, contours, -1, 1, -1)
+    
+    return canvas
+
+
+def calculate(preds, target, blobbing=True):
+    """"""
+    if blobbing:
+        preds = to_blobs(preds)
+        target = to_blobs(target)
+
+    union = target + preds
+
+    # change background value of prediction for efficient overlap computation
+    preds[preds == 0] = -1
+
+    # calculate blob overlap
+    overlap = target - preds
+
+    area_of_overlap = np.count_nonzero(overlap == 0)
+    area_of_union = np.count_nonzero(union > 0)
+
+    if area_of_union > 0:
+        blobs_iou = area_of_overlap / area_of_union
+    elif area_of_overlap == 0 and area_of_union == 0:
+        blobs_iou = 1
+    else:
+        blobs_iou = 0
+
+    return blobs_iou
+
+
+def unravel(batches):
+    """"""
+    unraveled = []
+
+    for batch in batches:
+        batch = batch.squeeze(1).cpu().numpy()
+        for sample in batch:
+            unraveled.append(sample)
+
+    return unraveled
+
+
 class BlobOverlap():
     __name__ = 'blob_overlap'
 
-    def __init__(self, smoothing=.1):
+    def __init__(self, num_workers=1):
         self.score = 0
         self.count = 0
+        
+        if num_workers > 1:
+            ray.init(num_cpus=num_workers)
+
+        self.num_workers = num_workers
 
 
-    def update(self, preds, target):
+    def update(self, preds, targets):
         """"""
-        blobs_preds = to_blobs(preds)
-        blobs_target = to_blobs(target)
+        # torch to numpy
+        if isinstance(preds, torch.Tensor):
+            preds = preds.squeeze(1).cpu().numpy()
+            targets = targets.squeeze(1).cpu().numpy()
+        
+        # calculate per batch
+        if self.num_workers > 1:
+            pids = []
+            for i, (pred, target) in enumerate(zip(preds, targets)):
+                pids.append(remote_calculate.remote(pred, target))
 
-        # change background value of prediction for efficient overlap computation
-        blobs_preds[blobs_preds == 0] = -1
-
-        # calculate blob overlap
-        overlap = (blobs_target - blobs_preds)
-
-        area_of_overlap = np.count_nonzero(overlap == 0)
-        area_of_union = np.count_nonzero((blobs_target + blobs_preds) > 0)
-
-        if area_of_union > 0:
-            blobs_iou = area_of_overlap / area_of_union
+            score = sum(ray.get(pids))
         else:
-            blobs_iou = 0
-
-        self.score += blobs_iou
+            score = 0
+            for i, (pred, target) in enumerate(zip(preds, targets)):
+                score += calculate(pred, target)
+            
+        score /= (i + 1)
+        
+        self.score += score
         self.count += 1
 
+        return score
 
+    
+    def update_all(self, all_preds, all_targets):
+        """ performs some scheduling to optimize 
+        wall time while using multiple workers """
+        
+        # unravel all predictions and targets
+        all_preds = unravel(all_preds)
+        all_targets = unravel(all_targets)
+
+        # combine and sort in ascending positive sample count
+        all_samples = np.array(all_preds + all_targets)
+        px_counts = np.array([np.count_nonzero(sample > 0) for sample in all_samples])
+        order = np.argsort(px_counts)
+
+        # parallel blobbing
+        pids = []
+        for idx in order:
+            pids.append(remote_to_blobs.remote(all_samples[idx]))
+
+        # restore original order and aggregate results
+        restored = list(np.array(pids)[np.argsort(order)])
+        all_blobs = ray.get(restored)
+
+        # calculate mean score
+        n = len(all_preds)
+        scores = [calculate(all_blobs[i].copy(), all_blobs[i + n].copy(), blobbing=False) for i in range(n)]
+
+        self.score += sum(scores)
+        self.count += n
+
+        return sum(scores)
+
+        
     def compute(self):
         """"""
         return self.score / self.count

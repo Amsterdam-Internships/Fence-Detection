@@ -5,6 +5,7 @@ import argparse
 
 import numpy as np
 
+from tqdm import tqdm
 from lxml import etree
 from skimage import measure
 from pycocotools import mask
@@ -178,7 +179,7 @@ def xml_to_json(xml):
     json_object['annotations'] = []
 
     index = 0
-    for child in xml:
+    for child in tqdm(xml):
         if child.tag == 'meta':
             licenses, info, categories = parse_meta(child)
 
@@ -197,8 +198,8 @@ def xml_to_json(xml):
 
 
 if __name__ == '__main__':
-    dirname = os.path.join('..', 'data', 'fences-quays', 'annotations')
-    fname = os.path.join(dirname, 'train-annotations-2.xml')
+    dirname = os.path.join('..', 'data', 'fences-quays', 'annotations', 'xml')
+    fname = os.path.join(dirname, 'annotations-2.xml')
 
     with open(fname) as f:
         xml = f.read().encode('ascii')
@@ -207,6 +208,6 @@ if __name__ == '__main__':
     json_object = xml_to_json(xml)
 
     # dump
-    f = open(os.path.join(dirname, f'train-annotations-2-{PIXELS}px.json'), 'w')
+    f = open(os.path.join(dirname, f'annotations-2-{PIXELS}px.json'), 'w')
     json.dump(json_object, f)
     f.close()
