@@ -13,6 +13,8 @@ READ_METADATA_DIR = os.path.join('..', 'data', 'fences-quays')
 READ_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations', 'batch-json')
 WRITE_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations')
 
+PIXELS = 30
+
 
 def make_empty_coco_json(coco):
     """"""
@@ -144,8 +146,8 @@ if __name__ == '__main__':
 
     metadata = pd.read_csv(os.path.join(READ_METADATA_DIR, 'metadata.csv'))
 
-    batch_a = read_json(os.path.join(READ_ANNOTATION_DIR, 'annotations-1-6px.json'))
-    batch_b = read_json(os.path.join(READ_ANNOTATION_DIR, 'annotations-2-6px.json'))
+    batch_a = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-1-{PIXELS}px.json'))
+    batch_b = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-2-{PIXELS}px.json'))
 
     coco = COCO(os.path.join(READ_ANNOTATION_DIR, 'annotations-1-6px.json'))
 
@@ -193,7 +195,7 @@ if __name__ == '__main__':
         # get corresponding annotations
         imgs, anns = get_imgs_anns_by_fnames(all_images, all_annotations, fnames)
         # write to subset json
-        make_coco_json(coco, os.path.join(WRITE_ANNOTATION_DIR, f'{subset}-annotations-6px.json'), imgs, anns)
+        make_coco_json(coco, os.path.join(WRITE_ANNOTATION_DIR, f'{subset}-annotations-{PIXELS}px.json'), imgs, anns)
 
     metadata.to_csv(os.path.join(READ_METADATA_DIR, 'metadata.csv'))
 

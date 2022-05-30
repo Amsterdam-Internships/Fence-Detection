@@ -19,6 +19,9 @@ class Epoch:
         self.device = device
         self.precision = precision
 
+        self.predictions = []
+        self.targets = []
+
         self._to_device()
 
     def _to_device(self):
@@ -38,9 +41,12 @@ class Epoch:
     def on_epoch_start(self):
         pass
 
-    def run(self, dataloader):
+    def run(self, dataloader, save=False):
 
         self.on_epoch_start()
+
+        self.predictions = []
+        self.targets = []
 
         logs = {}
         loss_meter = AverageValueMeter()
@@ -55,6 +61,10 @@ class Epoch:
             for x, y in iterator:
                 x, y = x.to(self.device), y.to(self.device)
                 loss, y_pred = self.batch_update(x, y)
+
+                if save:
+                    self.predictions.append(y_pred.cpu().detach())
+                    self.targets.append(y.cpu().detach())
 
                 # update loss logs
                 loss_value = loss.cpu().detach().numpy()

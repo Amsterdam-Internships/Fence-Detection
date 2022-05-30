@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+from tqdm import tqdm
 from sklearn.cluster import DBSCAN, OPTICS
 from torchmetrics import JaccardIndex as JI
 from torchmetrics import ConfusionMatrix as CM
@@ -95,7 +96,7 @@ def remote_to_blobs(mask, threshold=.5, blobber=DBSCAN):
     # get all positive prediction coordinates
     coords = np.flip(np.column_stack(np.where(mask > threshold)), axis=1)
     
-    if len(coords) > 0:
+    if len(coords) > 10:
         # use clustering algorithm to find labels per pixel coordinate
         clustering = blobber(eps=5, min_samples=10).fit(coords)
         coord_labels = clustering.labels_
@@ -225,27 +226,42 @@ class BlobOverlap():
 
     def update(self, preds, targets):
         """"""
-        # torch to numpy
-        if isinstance(preds, torch.Tensor):
-            preds = preds.squeeze(1).cpu().numpy()
-            targets = targets.squeeze(1).cpu().numpy()
-        
-        # calculate per batch
-        if self.num_workers > 1:
-            pids = []
-            for i, (pred, target) in enumerate(zip(preds, targets)):
-                pids.append(remote_calculate.remote(pred, target))
+        # unravel all predictions and targets
+        preds = np.array(unravel(preds))
+        targets = np.array(unravel(targets))
 
-            score = sum(ray.get(pids))
-        else:
-            score = 0
-            for i, (pred, target) in enumerate(zip(preds, targets)):
-                score += calculate(pred, target)
-            
-        score /= (i + 1)
+        print(preds.shape)
+        print(targets.shape)
         
+        score = 0
+        
+        for i, (pred, target) in tqdm(enumerate(zip(preds, targets))):
+            score += calculate(pred, target)
+
         self.score += score
-        self.count += 1
+        self.count = i + 1
+
+        # # torch to numpy
+        # if isinstance(preds, torch.Tensor):
+        #     preds = preds.squeeze(1).cpu().numpy()
+        #     targets = targets.squeeze(1).cpu().numpy()
+        
+        # # calculate per batch
+        # if self.num_workers > 1:
+        #     pids = []
+        #     for i, (pred, target) in enumerate(zip(preds, targets)):
+        #         pids.append(remote_calculate.remote(pred, target))
+
+        #     score = sum(ray.get(pids))
+        # else:
+        #     score = 0
+        #     for i, (pred, target) in enumerate(zip(preds, targets)):
+        #         score += calculate(pred, target)
+            
+        # score /= (i + 1)
+        
+        # self.score += score
+        # self.count += 1
 
         return score
 
