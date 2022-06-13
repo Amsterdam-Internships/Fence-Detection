@@ -13,7 +13,7 @@ READ_METADATA_DIR = os.path.join('..', 'data', 'fences-quays')
 READ_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations', 'batch-json')
 WRITE_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations')
 
-PIXELS = 30
+PIXELS = 20
 
 
 def make_empty_coco_json(coco):

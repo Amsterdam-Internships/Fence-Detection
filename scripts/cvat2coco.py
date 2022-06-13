@@ -12,7 +12,7 @@ from pycocotools import mask
 from itertools import groupby
 
 # width of of polyline polygon-like mask
-PIXELS = 30
+PIXELS = 20
 
 
 def binary_mask_to_rle(binary_mask):
@@ -209,6 +209,7 @@ if __name__ == '__main__':
         json_object = xml_to_json(xml)
 
         # dump
+        dirname = os.path.join('..', 'data', 'fences-quays', 'annotations', 'batch-json')
         f = open(os.path.join(dirname, f'annotations-{i + 1}-{PIXELS}px.json'), 'w')
         json.dump(json_object, f)
         f.close()

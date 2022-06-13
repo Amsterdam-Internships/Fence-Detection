@@ -163,20 +163,28 @@ def to_blobs(mask, threshold=.5, blobber=DBSCAN):
         
         for label in labels:
             cluster = coords[coord_labels == label]
-            contour = cluster[ConvexHull(cluster).vertices]
+            try:
+                contour = cluster[ConvexHull(cluster).vertices]
+            except:
+                return canvas, False
             
             contours.append(contour)
     
         canvas = cv2.drawContours(canvas, contours, -1, 1, -1)
     
-    return canvas
+    return canvas, True
 
 
 def calculate(preds, target, blobbing=True):
     """"""
     if blobbing:
-        preds = to_blobs(preds)
-        target = to_blobs(target)
+        preds, pred_success = to_blobs(preds)
+        if not pred_success:
+            return 0, False
+            
+        target, target_success = to_blobs(target)
+        if not target_success:
+            return 0, False
 
     union = target + preds
 
@@ -196,15 +204,19 @@ def calculate(preds, target, blobbing=True):
     else:
         blobs_iou = 0
 
-    return blobs_iou
+    return blobs_iou, True
 
 
 def unravel(batches):
     """"""
     unraveled = []
-
+   
     for batch in batches:
-        batch = batch.squeeze(1).cpu().numpy()
+        if isinstance(batch, torch.Tensor):
+            batch = batch.squeeze(1).cpu().numpy()
+        else:
+            batch = batch.squeeze(1)
+
         for sample in batch:
             unraveled.append(sample)
 
@@ -229,17 +241,14 @@ class BlobOverlap():
         # unravel all predictions and targets
         preds = np.array(unravel(preds))
         targets = np.array(unravel(targets))
-
-        print(preds.shape)
-        print(targets.shape)
         
         score = 0
         
         for i, (pred, target) in tqdm(enumerate(zip(preds, targets))):
-            score += calculate(pred, target)
-
-        self.score += score
-        self.count = i + 1
+            iou, success = calculate(pred, target)
+            
+            self.score += iou
+            self.count += 1 if success else 0
 
         # # torch to numpy
         # if isinstance(preds, torch.Tensor):
