@@ -18,3 +18,11 @@ UNet = get_encoder('Unet')
 UNetPP = get_encoder('UnetPlusPlus')
 
 PSPNet = get_encoder('PSPNet')
+
+DeepLabV3 = get_encoder('DeepLabV3')
+
+MANet = get_encoder('MAnet')
+
+PAN = get_encoder('PAN')
+
+Linknet = get_encoder('Linknet')

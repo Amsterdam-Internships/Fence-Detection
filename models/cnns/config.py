@@ -4,6 +4,7 @@ import torch
 TITLE = 'effnetb3-unetpp-1000s-aug'
 
 # problem details
+CLASSNAME = 'fence'
 CLASSES = 1
 
 # model details
@@ -15,8 +16,8 @@ ACTIVATION = 'sigmoid'
 TRAIN_IMAGE_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'images')
 VALID_IMAGE_PATH = TRAIN_IMAGE_PATH
 
-TRAIN_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annotations', 'train-annotations-6px.json')
-VALID_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annotations', 'valid-annotations-6px.json')
+TRAIN_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annotations', 'train-annotations-11px.json')
+VALID_ANNOTATIONS_PATH = os.path.join('..', '..', 'data', 'fences-quays', 'annotations', 'valid-annotations-11px.json')
 
 LOGS_PATH = os.path.join('..', '..', 'experiments')
 
