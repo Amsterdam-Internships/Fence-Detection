@@ -244,8 +244,10 @@ class BlobOverlap():
         
         score = 0
         
-        for i, (pred, target) in tqdm(enumerate(zip(preds, targets))):
+        for i, (pred, target) in enumerate(zip(preds, targets)):
             iou, success = calculate(pred, target)
+
+            score = iou
             
             self.score += iou
             self.count += 1 if success else 0

@@ -84,12 +84,13 @@ class ADE20KDataset(Dataset):
 class AmsterdamDataset(Dataset):
     """
     """
-    def __init__(self, imagedir, annotations, transform=None, preprocessing=None, train=True):
+    def __init__(self, imagedir, annotations, transform=None, preprocessing=None, train=True, classname='fence'):
         """
         """
         self.transform = transform
         self.preprocessing = preprocessing
         self.imagedir = imagedir
+        self.classname = classname
         
         # get annotations using COCO API
         self.coco = COCO(annotations)
@@ -101,6 +102,7 @@ class AmsterdamDataset(Dataset):
         self.annotations = self.coco.loadAnns(annotation_ids)
 
         self.fnames = [image['file_name'] for image in self.images]
+        self.index_by_fname = {image['file_name']:i for i, image in enumerate(self.images)}
 
         # filter only on fence annotations
         if train:
@@ -139,16 +141,13 @@ class AmsterdamDataset(Dataset):
 
         for annotation in annotations:
             if annotation.get('counts'):
-                # pass
-                # decode uncompressed RLE
-                ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
-                ann = cmask.decode(ann)
-                # mask = np.maximum(mask, np.array(ann) * annotation['category_id'])
-                mask = np.maximum(mask, np.array(ann) * 1)
-            else:
-                pass
-                # mask = np.maximum(mask, self.coco.annToMask(annotation) * annotation['category_id'])
-                # mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
+                if self.classname == 'fence':
+                    # decode uncompressed RLE
+                    ann = cmask.frPyObjects(annotation.get('counts'), obj['height'], obj['width'])
+                    ann = cmask.decode(ann)
+                    mask = np.maximum(mask, np.array(ann) * 1)
+            elif self.classname == 'quay':
+                mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
 
         # convert from float to integer
         mask = np.expand_dims(mask.astype(np.uint8), axis=-1)
@@ -162,3 +161,17 @@ class AmsterdamDataset(Dataset):
             image, mask = sample['image'], sample['mask']
             
         return image, mask
+
+    def get(self, key):
+        """
+        """
+        if isinstance(key, int):
+            return self[key]
+
+        elif isinstance(key, str):
+            index = self.index_by_fname.get(key)
+
+            if index:
+                return self[index]
+            
+        return tuple()

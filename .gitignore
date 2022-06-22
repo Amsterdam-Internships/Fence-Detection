@@ -19,6 +19,9 @@ models/weights/*
 models/transformers/swin/experiments/*
 experiments/*
 
+# remove later
+notebooks/* 
+
 # preserve file so that empty dir shows
 !data/.gitkeep
 !experiments/.gitkeep
