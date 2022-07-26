@@ -1,9 +1,8 @@
 ## fence-detection
 Research internship with the Gemeente Amsterdam concerning the detection of fencing along open water within the city center.
 
-![img.png](media/img.png)
+![img.png](media/figure-amsterdam.pdf)
 
-[comment]: <> (![]&#40;media/examples/emojis.png&#41;)
 
 ---
 
@@ -37,6 +36,7 @@ There are the following folders in the structure:
 
 ## Usage
 
+To create the visualisation shown above
 
 ## Finetuning a Model
 
