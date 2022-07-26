@@ -19,7 +19,7 @@ from utils.general import visualize
 PATH_IMAGE_DIR = os.path.join('..', 'data', 'images')
 PATH_META_FILE = os.path.join('..', 'data', '15000-water-images', 'metadata.csv')
 
-PATH_MODEL_FENCE = os.path.join('..', 'experiments', 'resnet18-unet-1600s-aug-11px', 'best_model.pth')
+PATH_MODEL_FENCE = os.path.join('..', 'experiments', 'fences', 'effnetb6-unetpp-1600s-aug', 'best_model.pth')
 PATH_MODEL_QUAY = None
 
 PATH_SAVE_FILE = os.path.join('..', 'data', 'geometry', 'predictions.geojson')
@@ -76,21 +76,45 @@ if __name__ == '__main__':
             # visualize(x=img, y=y)
             coords = np.asarray(np.where(y == 1)).T
             ys, xs = coords[:, 0], coords[:, 1]
-            
-            # calculate width coverage
-            width = len(np.unique(xs)) / y.shape[1]
-            
-            # calculate pixel height
             height = 0
-            
-            if width > 0:
-                samples = np.random.choice(xs, 20)
-                for j, sample in enumerate(samples):
-                    ys_per_x = coords[xs == sample, 0]
-                    height_per_x = abs(ys_per_x.max() - ys_per_x.min())
-                    height += height_per_x
+
+            if len(coords) > 0:
+                sorted_by_min_y = coords[coords[:, 0].argsort()[::-1]]
+                max_y = sorted_by_min_y[0][0]
                 
-                height /= (j + 1)
+                sub_ys = sorted_by_min_y[:, 0]
+                sub_xs = sorted_by_min_y[:, 1]
+                
+                y_range = sub_ys[sub_ys > (max_y - 50)]
+                x_range = sub_xs[sub_ys > (max_y - 50)]
+                
+                min_y = y_range.min()
+                min_x = x_range.min()
+                max_x = x_range.max()
+                
+                # print('min_y', min_y)
+                # print('max_y', max_y)
+                
+                # print('min_x', min_x)
+                # print('max_x', max_x)
+                # print('\n')
+                sample_range = np.arange(min_x, max_x)
+
+                if len(sample_range) > 20:
+                    samples = np.random.choice(sample_range, 20)
+                
+                    for j, sample in enumerate(samples):
+                        ys_per_x = coords[xs == sample, 0]
+                        
+                        if len(ys_per_x) >= 1:
+                            height_per_x = abs(ys_per_x.min() - max_y)
+                            height += height_per_x
+                        else:
+                            height += 1
+
+                    height /= (j + 1)
+            
+                    # print('est. height', height)
             
             per_image[f'height_{side}'] = height
             

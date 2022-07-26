@@ -1,5 +1,6 @@
 import os
 import io
+import sys
 import json
 import torch
 
@@ -12,6 +13,9 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from pycocotools import mask as cmask
 from pycocotools.coco import COCO
+
+sys.path.insert(0, '..')
+from utils.metrics import to_blobs
 
 
 class COCODataset(Dataset):
@@ -150,7 +154,8 @@ class AmsterdamDataset(Dataset):
                 mask = np.maximum(mask, self.coco.annToMask(annotation) * 1)
 
         # convert from float to integer
-        mask = np.expand_dims(mask.astype(np.uint8), axis=-1)
+        mask = mask.astype(np.uint8)
+        mask = np.expand_dims(mask, axis=-1)
 
         if self.transform:
             sample = self.transform(image=image, mask=mask)
@@ -175,3 +180,47 @@ class AmsterdamDataset(Dataset):
                 return self[index]
             
         return tuple()
+
+
+class PolygonFences(Dataset):
+    """"""
+    def __init__(self, images, annotations, subset='train', transform=None, preprocessing=None):
+        """"""
+        self.img_dir = images
+        self.ann_dir = os.path.join(annotations, f'masks-{subset}')
+
+        self.transform = transform
+        self.preprocessing = preprocessing
+
+        self.fnames = os.listdir(self.ann_dir)
+
+        self.fnames_masks = self.fnames
+        self.fnames_imgs = [fname.replace('.npy', '.jpg') for fname in self.fnames]
+
+
+    def __len__(self):
+        """"""
+        return len(self.fnames)
+
+    
+    def __getitem__(self, idx):
+        """"""
+        fname_img = os.path.join(self.img_dir, self.fnames_imgs[idx])
+        fname_mask = os.path.join(self.ann_dir, self.fnames_masks[idx])
+
+        image = io.imread(fname_img)
+
+        with open(fname_mask, 'rb') as f:
+            mask = np.load(f)
+
+        if self.transform:
+            sample = self.transform(image=image, mask=mask)
+            image, mask = sample['image'], sample['mask']
+
+        if self.preprocessing:
+            sample = self.preprocessing(image=image, mask=mask)
+            image, mask = sample['image'], sample['mask']
+            
+        return image, mask
+
+        

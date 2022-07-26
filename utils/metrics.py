@@ -144,7 +144,7 @@ def remote_calculate(preds, target, blobbing=True):
     return blobs_iou
 
 
-def to_blobs(mask, threshold=.5, blobber=DBSCAN):
+def to_blobs(mask, threshold=.5, blobber=DBSCAN, eps=5):
     """"""
     canvas = np.zeros(mask.shape)
     contours = []
@@ -154,7 +154,7 @@ def to_blobs(mask, threshold=.5, blobber=DBSCAN):
     
     if len(coords) > 0:
         # use clustering algorithm to find labels per pixel coordinate
-        clustering = blobber(eps=5, min_samples=10).fit(coords)
+        clustering = blobber(eps=eps, min_samples=10).fit(coords)
         coord_labels = clustering.labels_
         
         # get non noisy cluster labels

@@ -13,8 +13,10 @@ READ_METADATA_DIR = os.path.join('..', 'data', 'fences-quays')
 READ_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations', 'batch-json')
 WRITE_ANNOTATION_DIR = os.path.join('..', 'data', 'fences-quays', 'annotations')
 
-PIXELS = 20
+PIXELS = 11
+BLOBS = True
 
+blobs = '-blobs' if BLOBS else ''
 
 def make_empty_coco_json(coco):
     """"""
@@ -146,10 +148,10 @@ if __name__ == '__main__':
 
     metadata = pd.read_csv(os.path.join(READ_METADATA_DIR, 'metadata.csv'))
 
-    batch_a = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-1-{PIXELS}px.json'))
-    batch_b = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-2-{PIXELS}px.json'))
+    batch_a = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-1-{PIXELS}px{blobs}.json'))
+    batch_b = read_json(os.path.join(READ_ANNOTATION_DIR, f'annotations-2-{PIXELS}px{blobs}.json'))
 
-    coco = COCO(os.path.join(READ_ANNOTATION_DIR, 'annotations-1-6px.json'))
+    coco = COCO(os.path.join(READ_ANNOTATION_DIR, f'annotations-1-{PIXELS}px{blobs}.json'))
 
     images_a, annotations_a = reset_ids(batch_a['images'], batch_a['annotations'])
     images_b, annotations_b = reset_ids(batch_b['images'], batch_b['annotations'], imgs_offset=len(images_a),
@@ -189,13 +191,13 @@ if __name__ == '__main__':
     for subset in ['train', 'valid', 'test']:
         # get fnames of images within the subset
         df = metadata.query(f'Buurtcode in @codes_{subset}')
-        fnames = df.filename_x.to_list()
+        fnames = df.filename.to_list()
         indices = df.index.to_list()
         metadata.subset.iloc[indices] = subset
         # get corresponding annotations
         imgs, anns = get_imgs_anns_by_fnames(all_images, all_annotations, fnames)
         # write to subset json
-        make_coco_json(coco, os.path.join(WRITE_ANNOTATION_DIR, f'{subset}-annotations-{PIXELS}px.json'), imgs, anns)
+        make_coco_json(coco, os.path.join(WRITE_ANNOTATION_DIR, f'{subset}-annotations-{PIXELS}px{blobs}.json'), imgs, anns)
 
     metadata.to_csv(os.path.join(READ_METADATA_DIR, 'metadata.csv'))
 

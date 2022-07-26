@@ -1,4 +1,5 @@
 import os
+import sys
 import cv2
 import json
 import argparse
@@ -11,8 +12,14 @@ from skimage import measure
 from pycocotools import mask
 from itertools import groupby
 
+sys.path.insert(0, '..')
+from utils.metrics import to_blobs
+
 # width of of polyline polygon-like mask
-PIXELS = 20
+PIXELS = 11
+
+# polygon-like polyline annotations
+BLOBS = True 
 
 
 def binary_mask_to_rle(binary_mask):
@@ -34,6 +41,9 @@ def polyline_to_polygon(points, width, height, pixels=PIXELS):
     # create ndarray binary mask
     background = np.zeros((height, width)).astype(int)
     binary_mask = cv2.polylines(background, [points], False, 1, pixels, lineType=cv2.LINE_AA)
+
+    if BLOBS:
+        binary_mask = to_blobs(binary_mask, eps=50)[0]
 
     # RLE encode
     arr = np.asfortranarray(binary_mask, dtype=np.uint8)
@@ -210,6 +220,7 @@ if __name__ == '__main__':
 
         # dump
         dirname = os.path.join('..', 'data', 'fences-quays', 'annotations', 'batch-json')
-        f = open(os.path.join(dirname, f'annotations-{i + 1}-{PIXELS}px.json'), 'w')
+        fname = f'annotations-{i + 1}-{PIXELS}px' + '-blobs' if BLOBS else ''
+        f = open(os.path.join(dirname, f'{fname}.json'), 'w')
         json.dump(json_object, f)
         f.close()
