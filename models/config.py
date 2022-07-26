@@ -1,5 +1,6 @@
 import os
 import torch
+from model import *
 
 TITLE = 'resnet18-unet-1600s-aug-11px-blobs'
 
@@ -13,6 +14,8 @@ BLOBS = True # polygon-like annotations
 ENCODER_DETAILS = 'resnet18'
 ENCODER_WEIGHTS = 'imagenet' # 'imagenet'
 ACTIVATION = 'sigmoid'
+
+DECODER = UNet
 
 # data details
 TRAIN_IMAGE_PATH = os.path.join('..', 'data', 'fences-quays', 'images')

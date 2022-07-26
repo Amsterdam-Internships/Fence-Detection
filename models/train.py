@@ -21,7 +21,7 @@ if __name__ == '__main__':
     train_logs = TrainLog(config.TITLE, dirpath=config.LOGS_PATH)
 
     # get decoder
-    model = UNet
+    model = config.DECODER
 
     train_logs.add_model_data(model)
     train_logs.add_config_data(config)

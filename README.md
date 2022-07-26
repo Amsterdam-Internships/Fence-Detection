@@ -1,4 +1,4 @@
-## fence-detection
+## Fence Detection in Amsterdam with Segmentation Models
 Research internship with the Gemeente Amsterdam concerning the detection of fencing along open water within the city center.
 
 ![Fences in Amsterdam](media/figure-amsterdam.pdf)
@@ -36,10 +36,10 @@ There are the following folders in the structure:
 
 ## Usage
 
-To create the visualisation linked above, run [inference.py](./scripts/inference.py) (params can be adjusted in the file itself). This creates a GeoJSON file which can be read and plotted accordingly. The visualisation linked above was made using the notebook [visualisation-predictions.ipynb])(.notebooks/visualisation-predictions.ipynb).
+To create the visualisation linked above, run [inference.py](./scripts/inference.py) (params can be adjusted in the file itself). This creates a GeoJSON file which can be read and plotted accordingly. The visualisation linked above was made using the notebook [visualisation-predictions.ipynb])(./notebooks/visualisation-predictions.ipynb).
 
-## Finetuning a Model
-
+## Training a Model
+To train a model, we refer to the [models](./models) folder. Model params, dataset references, and output directories can be specified in [config.py](./models/config.py). Then simply run [train.py](./models/train.py)
 
 <!-- ## How it works -->
 
