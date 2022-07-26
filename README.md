@@ -1,7 +1,7 @@
 ## fence-detection
 Research internship with the Gemeente Amsterdam concerning the detection of fencing along open water within the city center.
 
-![img.png](media/figure-amsterdam.pdf)
+![Fences in Amsterdam](media/figure-amsterdam.pdf)
 
 
 ---
@@ -36,12 +36,12 @@ There are the following folders in the structure:
 
 ## Usage
 
-To create the visualisation shown above
+To create the visualisation linked above, run [inference.py](./scripts/inference.py) (params can be adjusted in the file itself). This creates a GeoJSON file which can be read and plotted accordingly. The visualisation linked above was made using the notebook [visualisation-predictions.ipynb])(.notebooks/visualisation-predictions.ipynb).
 
 ## Finetuning a Model
 
 
-## How it works
+<!-- ## How it works -->
 
 
 ## Acknowledgements
